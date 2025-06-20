@@ -1,6 +1,6 @@
 <?php
-// var_dump($_SERVER);
 require '../vendor/autoload.php';
+use Azure as OAuth;
 if (isset($_GET['logout'])) {
     OAuth::logout();
 }
