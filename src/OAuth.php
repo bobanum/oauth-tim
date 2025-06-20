@@ -2,12 +2,20 @@
 
 class OAuth {
     static private $pdo = null;
-    static $config = null;
+    static $config = [
+        'client_id' => 'OAUTH_CLIENT_ID',
+        'client_secret' => 'OAUTH_CLIENT_SECRET',
+        'redirect_uri' => 'OAUTH_REDIRECT_URI',
+        'tenant' => 'OAUTH_TENANT',
+        'authorize_url' => 'OAUTH_AUTHORIZE_URL',
+        'token_url' => 'OAUTH_TOKEN_URL',
+        'user_info_url' => 'OAUTH_USER_INFO_URL',
+    ];
     static function getPDO() {
         if (self::$pdo) {
             return self::$pdo;
         }
-        $db = new PDO('sqlite:' . __DIR__ . '../database/db.sqlite');
+        $db = new PDO('sqlite:' . __DIR__ . '/../database/db.sqlite');
         $db->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
         return $db;
     }
@@ -19,10 +27,6 @@ class OAuth {
         return $stmt;
     }
     static function gotToken($token) {
-        // $db = self::getPDO();
-        // $stmt = $db->prepare("SELECT * FROM users WHERE token = ?");
-        // $stmt->execute([$token]);
-        // $user = $stmt->fetch(PDO::FETCH_ASSOC);
         $user = self::getStmt("SELECT * FROM users WHERE token = ?", [$token])->fetch();
 
         if (!$user) {
@@ -37,27 +41,35 @@ class OAuth {
 
     static function gotCode($code) {
         session_start();
-        // var_dump("gotCode", $_SERVER);
-
         $access_token = self::redeemCode($code);
         if (!$access_token) {
             self::JsonResponse(['error' => 'Invalid code'], 400);
         }
 
-        $user = self::redeemToken($access_token);
-        var_dump("redeemToken", $user);
-        die;
-        $user['token'] = OAuth::generateToken();
-        if (OAuth::getUserByEmail($user['email'])) {
-            OAuth::updateUserToken($user['email'], $user['token']);
+        $data = self::redeemToken($access_token);
+
+        if (empty($data['userPrincipalName'])) {
+            self::JsonResponse(['error' => 'User info fetch failed'], 400);
+        }
+
+        $user = [
+            'email' => $data['userPrincipalName'],
+            'first_name' => $data['givenName'] ?? null,
+            'last_name' => $data['surname'] ?? null,
+            'job_title' => $data['jobTitle'] ?? null,
+            'token' => self::generateToken(),
+        ];
+
+        if (self::getUserByEmail($user['email'])) {
+            self::updateUserToken($user['email'], $user['token']);
         } else {
-            OAuth::createUser($user['email'], $user['name'], $user['token']);
+            self::createUser($user);
         }
 
         self::JsonResponse($user);
     }
 
-    static function getCurl($url, $headers = [], $data=null) {
+    static function getCurl($url, $headers = [], $data = null) {
         $ch = curl_init();
         curl_setopt($ch, CURLOPT_URL, $url);
         curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
@@ -75,14 +87,14 @@ class OAuth {
 
     static function redeemCode($code) {
         $postFields = [
-            'client_id'     => self::$config['client_id'],
+            'client_id'     => self::config('client_id'),
             'scope'         => 'User.Read',
             'code'          => $code,
-            'redirect_uri'  => self::$config['redirect_uri'],
+            'redirect_uri'  => self::config('redirect_uri'),
             'grant_type'    => 'authorization_code',
-            'client_secret' => self::$config['client_secret'],
+            'client_secret' => self::config('client_secret'),
         ];
-        $ch = self::getCurl(self::$config['token_url'], [], $postFields);
+        $ch = self::getCurl(self::config('token_url'), [], $postFields);
 
         $response = curl_exec($ch);
 
@@ -98,7 +110,7 @@ class OAuth {
         return $tokenResponse['access_token'] ?? null;
     }
     static function redeemToken($token) {
-        $ch = self::getCurl(self::$config['user_info_url'], [
+        $ch = self::getCurl(self::config('user_info_url'), [
             "Authorization: Bearer $token"
         ]);
 
@@ -110,30 +122,18 @@ class OAuth {
         }
 
         curl_close($ch);
-
-        $user = json_decode($response, true);
-        $email = $user['userPrincipalName'] ?? null;
-        $name = $user['displayName'] ?? null;
-
-        if (!$email || !$name) {
-            self::JsonResponse(['error' => 'User info fetch failed'], 400);
-        }
-
-        return [
-            'email' => $email,
-            'name' => $name
-        ];
+        return json_decode($response, true);
     }
 
     static function login() {
         $params = [
-            'client_id' => self::$config['client_id'],
+            'client_id' => self::config('client_id'),
             'response_type' => 'code',
-            'redirect_uri' => self::$config['redirect_uri'],
+            'redirect_uri' => self::config('redirect_uri'),
             'response_mode' => 'query',
             'scope' => 'User.Read',
         ];
-        $url = self::$config['authorize_url'] . '?' . http_build_query($params);
+        $url = self::config('authorize_url') . '?' . http_build_query($params);
         header('Location: ' . $url);
         exit;
     }
@@ -149,22 +149,15 @@ class OAuth {
     }
 
     static function getUserByEmail($email) {
-        $db = self::getPDO();
-        $stmt = $db->prepare("SELECT * FROM users WHERE email = ?");
-        $stmt->execute([$email]);
-        return $stmt->fetch(PDO::FETCH_ASSOC);
+        return self::getStmt("SELECT * FROM users WHERE email = ?", [$email])->fetch();
     }
 
-    static function createUser($email, $name, $token) {
-        $db = self::getPDO();
-        $stmt = $db->prepare("INSERT INTO users (email, name, token) VALUES (?, ?, ?)");
-        $stmt->execute([$email, $name, $token]);
+    static function createUser($user) {
+        return self::getStmt("INSERT INTO users (email, first_name, last_name, job_title, token) VALUES (?, ?, ?, ?, ?)", array_values($user));
     }
 
     static function updateUserToken($email, $token) {
-        $db = self::getPDO();
-        $stmt = $db->prepare("UPDATE users SET token = ? WHERE email = ?");
-        $stmt->execute([$token, $email]);
+        return self::getStmt("UPDATE users SET token = ?, updated_at=current_timestamp WHERE email = ?", [$token, $email]);
     }
 
     static function JsonResponse($data, $status = 200) {
@@ -173,5 +166,19 @@ class OAuth {
         echo json_encode($data);
         exit;
     }
+    static function config($var) {
+        if (!isset(self::$config[$var])) {
+            return $var;
+        }
+        $envVar = self::$config[$var];
+        if (isset($_ENV[$envVar])) {
+            return $_ENV[$envVar];
+        }
+        return null;
+    }
+    static function init() {
+        Dotenv\Dotenv::createImmutable(dirname(__DIR__))->load();
+    }
 }
-OAuth::$config = require '../config.php';
+// Initialize the OAuth class
+OAuth::init();
