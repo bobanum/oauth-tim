@@ -1,5 +1,3 @@
 vendor
-*.zip
-facebook-oauth-basic
-github-oauth-basic
-google-oauth-basic
+_travail
+.env

@@ -1,42 +1,50 @@
 <?php
 class Github extends Provider {
-    static protected $pdo = null;
-    static protected $prefix = 'GITHUB';
-    static protected $provider_id = 4;
+    protected $pdo = null;
+    protected $prefix = 'GITHUB';
+    protected $provider_id = 4;
+    
+    function __construct() {
+        $this->client_id = $this->config('client_id');
+        $this->client_secret = $this->config('client_secret');
+        $this->scope = $this->config('scope', 'read:user user:email');
+        $this->redirect_uri = $this->config('redirect_uri');
+        $this->authorize_url = "https://github.com/login/oauth/authorize";
+        $this->token_url = "https://github.com/login/oauth/access_token";
+        $this->user_info_url = "https://api.github.com/user";
+    }
 
-    static function tokenData($code) {
+    function tokenData($code) {
         $result = [
-            'client_id'     => static::config('client_id'),
-            'client_secret' => static::config('client_secret'),
+            'client_id'     => $this->client_id,
+            'client_secret' => $this->client_secret,
             'code'          => $code,
-            'redirect_uri'  => static::config('redirect_uri'),
+            'redirect_uri'  => $this->redirect_uri,
         ];
         return $result;
     }
-    static function redeemToken($token) {
-        $data = self::curlExec(static::config('user_info_url'), [
+    function redeemToken($token) {
+        $data = self::curlExec($this->user_info_url, [
             "Authorization: token $token",
             "User-Agent: MyApp",
         ]);
 
-        // var_dump(__LINE__, $data);die; // Debugging line, can be removed later
         if (empty($data['login']) && empty($data['id'])) {
-            static::JsonResponse(['error' => 'User info fetch failed'], 400);
+            $this->JsonResponse(['error' => 'User info fetch failed'], 400);
         }
 
         return [
-            'provider_id' => static::$provider_id,
+            'provider_id' => $this->provider_id,
             'login' => $data['login'] ?: $data['id'],
             'email' => $data['email'] ?? null,
             'name' => $data['name'] ?? null,
-            // 'token' => static::generateToken(),
             'response' => $data,
         ];
     }
-    static function loginParams() {
+    function loginParams() {
         $result = [
-            'client_id' => static::config('client_id'),
-            'redirect_uri' => static::config('redirect_uri'),
+            'client_id' => $this->client_id,
+            'redirect_uri' => $this->redirect_uri,
             // 'scope' => 'read:user user:email',
             'allow_signup' => 'true',
         ];

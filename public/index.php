@@ -1,15 +1,14 @@
 <?php
 require '../vendor/autoload.php';
-// use Azure as OAuth;
-use Github as OAuth;
+$provider = new Github();
 if (isset($_GET['logout'])) {
-    OAuth::logout();
+    $provider->logout();
 }
 if (isset($_GET['code'])) {
-    OAuth::gotCode($_GET['code']);
+    $provider->gotCode($_GET['code']);
 }
-if (isset($_GET['token'])) {
-    OAuth::gotToken($_GET['token']);
-}
-OAuth::login();
+// if (isset($_GET['token'])) {
+//     $provider->gotToken($_GET['token']);
+// }
+$provider->login();
 
