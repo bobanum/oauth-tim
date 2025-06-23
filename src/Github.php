@@ -2,46 +2,16 @@
 class Github extends Provider {
     static protected $pdo = null;
     static protected $prefix = 'GITHUB';
-    static function gotToken($token) {
-        $user = static::getStmt("SELECT * FROM users WHERE token = ?", [$token])->fetch();
+    static protected $provider_id = 4;
 
-        if (!$user) {
-            static::JsonResponse(['error' => 'Invalid token'], 403);
-        }
-
-        static::JsonResponse([
-            'message' => 'Bienvenue, ' . $user['name'],
-            'email' => $user['email']
-        ]);
-    }
-
-    static function gotCode($code) {
-        session_start();
-        $access_token = static::redeemCode($code);
-        if (!$access_token) {
-            static::JsonResponse(['error' => 'Invalid code'], 400);
-        }
-
-        $user = static::redeemToken($access_token);
-
-        if (static::getUser($user)) {
-            static::updateToken($user['email'], $user['token']);
-        } else {
-            static::createUser($user);
-        }
-
-        static::JsonResponse($user);
-    }
-
-    static function redeemCode($code, $postFields = []) {
-        $postFields = [
+    static function tokenData($code) {
+        $result = [
             'client_id'     => static::config('client_id'),
             'client_secret' => static::config('client_secret'),
             'code'          => $code,
             'redirect_uri'  => static::config('redirect_uri'),
         ];
-        $tokenResponse = parent::redeemCode($code, $postFields);
-        return $tokenResponse['access_token'] ?? null;
+        return $result;
     }
     static function redeemToken($token) {
         $data = self::curlExec(static::config('user_info_url'), [
@@ -49,27 +19,27 @@ class Github extends Provider {
             "User-Agent: MyApp",
         ]);
 
-        if (empty($data['userPrincipalName'])) {
+        // var_dump(__LINE__, $data);die; // Debugging line, can be removed later
+        if (empty($data['login']) && empty($data['id'])) {
             static::JsonResponse(['error' => 'User info fetch failed'], 400);
         }
 
         return [
-            'login' => $data['login'] ?? 'unknown',
-            'email' => null,
+            'provider_id' => static::$provider_id,
+            'login' => $data['login'] ?: $data['id'],
+            'email' => $data['email'] ?? null,
             'name' => $data['name'] ?? null,
-            'token' => static::generateToken(),
+            // 'token' => static::generateToken(),
             'response' => $data,
         ];
     }
-    static function login() {
-        $params = [
+    static function loginParams() {
+        $result = [
             'client_id' => static::config('client_id'),
             'redirect_uri' => static::config('redirect_uri'),
-            'scope' => 'read:user user:email',
+            // 'scope' => 'read:user user:email',
             'allow_signup' => 'true',
         ];
-        $url = static::config('authorize_url') . '?' . http_build_query($params);
-        header('Location: ' . $url);
-        exit;
+        return $result;
     }
 }

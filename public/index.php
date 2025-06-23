@@ -1,6 +1,7 @@
 <?php
 require '../vendor/autoload.php';
-use Azure as OAuth;
+// use Azure as OAuth;
+use Github as OAuth;
 if (isset($_GET['logout'])) {
     OAuth::logout();
 }

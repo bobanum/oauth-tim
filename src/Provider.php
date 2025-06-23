@@ -1,27 +1,9 @@
 <?php
 abstract class Provider {
-    static protected $pdo = null;
+    use ProviderDBTrait;
     static protected $prefix = 'OAUTH';
-    static function getPDO() {
-        if (static::$pdo) {
-            return static::$pdo;
-        }
-        // $dbPath = realpath($_SERVER['DOCUMENT_ROOT'] . '/../'. static::config('DATABASE_PATH', 'database/db.sqlite'));
-        $dbPath = static::config('DATABASE_PATH', 'database/db.sqlite');
-        $dbPath = realpath($dbPath) ?: realpath(static::base_path($dbPath));
-        $db = new PDO('sqlite:' . $dbPath);
-        $db->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
-        return $db;
-    }
-    static function getStmt($query, $params = []) {
-        $db = static::getPDO();
-        $stmt = $db->prepare($query);
-        $stmt->setFetchMode(PDO::FETCH_ASSOC);
-        $stmt->execute($params);
-        return $stmt;
-    }
     static function gotToken($token) {
-        $user = static::getStmt("SELECT * FROM users WHERE token = ?", [$token])->fetch();
+        $user = static::getStmt("SELECT * FROM user WHERE token = ?", [$token])->fetch();
 
         if (!$user) {
             static::JsonResponse(['error' => 'Invalid token'], 403);
@@ -42,16 +24,15 @@ abstract class Provider {
 
         $user = static::redeemToken($access_token);
 
-        if (static::getUser($user)) {
-            static::updateToken($user);
-        } else {
-            static::createUser($user);
-        }
-
+        $user['user_id'] = static::getOrCreateUserId($user);
+        $user['token'] = static::generateToken();
+        var_dump(__LINE__, $user); // Debugging line, can be removed later
+        static::updateToken($user);
         static::JsonResponse($user);
     }
 
     static function getCurl($url, $headers = [], $data = null) {
+        $headers[] = 'Accept: application/json';
         $ch = curl_init();
         curl_setopt($ch, CURLOPT_URL, $url);
         curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
@@ -79,28 +60,27 @@ abstract class Provider {
         }
 
         curl_close($ch);
-
+        // var_dump(__LINE__, $response);die; // Debugging line, can be removed later
         return json_decode($response, true);
     }
 
-    static function redeemCode($code, $postFields = []) {
-        $postFields['code'] = $code;
-        return static::curlExec(static::config('token_url'), [], $postFields);
+    static function redeemCode($code) {
+        $postFields = static::tokenData($code);
+        $response = static::curlExec(static::config('token_url'), [], $postFields);
+        if (!$response || !isset($response['access_token'])) {
+            static::JsonResponse(['error' => 'Invalid response from token endpoint'], 400);
+        }
+        return $response['access_token'];
     }
     abstract static function redeemToken($token);
+    abstract static function tokenData($code);
+    abstract static function loginParams();
+
     static function login() {
-        $params = [
-            'client_id' => static::config('client_id'),
-            'response_type' => 'code',
-            'redirect_uri' => static::config('redirect_uri'),
-            'response_mode' => 'query',
-            'scope' => 'User.Read',
-        ];
-        $url = static::config('authorize_url') . '?' . http_build_query($params);
+        $url = static::config('authorize_url') . '?' . http_build_query(static::loginParams());
         header('Location: ' . $url);
         exit;
     }
-
     static function logout() {
         session_start();
         session_destroy();
@@ -109,34 +89,6 @@ abstract class Provider {
 
     static function generateToken() {
         return bin2hex(random_bytes(32));
-    }
-
-    static function getUser($user) {
-        if ($user['email']) {
-            return static::getUserByEmail($user['email']);
-        }
-        if ($user['login']) {
-            return static::getUserByLogin($user['login']);
-        }
-    }
-
-    static function getUserByLogin($login) {
-        return static::getStmt("SELECT * FROM users WHERE login = ?", [$login])->fetch();
-    }
-
-    static function getUserByEmail($email) {
-        return static::getStmt("SELECT * FROM users WHERE email = ?", [$email])->fetch();
-    }
-
-    static function createUser($user) {
-        return static::getStmt("INSERT INTO users (email, first_name, last_name, job_title, token) VALUES (?, ?, ?, ?, ?)", array_values($user));
-    }
-
-    static function updateToken($user) {
-        return static::updateUserToken($user['email'], $user['token']);
-    }
-    static function updateUserToken($email, $token) {
-        return static::getStmt("UPDATE users SET token = ?, updated_at=current_timestamp WHERE email = ?", [$token, $email]);
     }
 
     static function JsonResponse($data, $status = 200) {
