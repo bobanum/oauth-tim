@@ -84,6 +84,7 @@ abstract class Provider {
 
     function login() {
         $url = $this->authorize_url . '?' . http_build_query($this->loginParams());
+        // var_dump(__LINE__,$url);die;
         header('Location: ' . $url);
         exit;
     }

@@ -1,3 +1,4 @@
-vendor
-_travail
+/vendor/
+/_travail
 .env
+*.sqlite

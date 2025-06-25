@@ -25,11 +25,6 @@ class Azure extends Provider {
         ];
         return $result;
     }
-    function redeemCode($code, $postFields = []) {
-        $postFields = $this->tokenData($code);
-        $tokenResponse = parent::redeemCode($code, $postFields);
-        return $tokenResponse['access_token'] ?? null;
-    }
     function redeemToken($token) {
         $data = $this->curlExec($this->user_info_url, [
             "Authorization: Bearer $token"

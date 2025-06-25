@@ -5,7 +5,7 @@ trait ProviderDBTrait {
         if ($this->pdo) {
             return $this->pdo;
         }
-        $dbPath = $this->config('DATABASE_PATH', 'database/db.sqlite');
+        $dbPath = $this->config('DB_NAME', 'database/db.sqlite');
         $dbPath = realpath($dbPath) ?: realpath($this->base_path($dbPath));
         $db = new PDO('sqlite:' . $dbPath);
         $db->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
