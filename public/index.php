@@ -1,5 +1,9 @@
 <?php
 require '../vendor/autoload.php';
+var_dump(__LINE__, $_COOKIE);die; // Debugging line
+if (isset($_COOKIE['token'])) {
+    Auth::JsonResponse(['status' => 'connected']);
+}
 $provider = new Azure();
 // $provider = new Github();
 // $provider = new Google();

@@ -34,6 +34,7 @@ abstract class Provider {
 
         $user['user_id'] = $this->getOrCreateUserId($user);
         $user['token'] = $this->generateToken();
+        setcookie('token', $user['token'], time() + 60 * 60 * 24 * 30, '/', '', false, true); // Secure and HttpOnly
         $this->updateToken($user);
         $this->JsonResponse($user);
     }
@@ -123,7 +124,7 @@ abstract class Provider {
         return $result;
     }
     function base_path($file = null) {
-        $result = dirname($_SERVER['DOCUMENT_ROOT'] ?? __DIR__);
+        $result = dirname(__DIR__);
         if ($file) {
             return $result . '/' . $file;
         }
