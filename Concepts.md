@@ -1,0 +1,80 @@
+# Authorization Concepts for an API
+
+  - App Key
+    - Is a unique identifier for an application, often used to authenticate the app with an API.
+    - Is stored in the database as a string along with the app's details 
+    - Is given to the application developer when they register their app with the API provider.
+    - Is given back to the server when the app makes requests to the API as a header or query parameter.
+  - App Secret
+    - Is a secret key associated with an application, used to sign requests or authenticate the app.
+  - Client
+    - Client ID
+      - Is a unique identifier for the client application.
+      - Is used to identify the application making requests to the API.
+      - Is given to the application developer when they register their app with the API provider.
+      - Is included in the request to the authorization server when obtaining an access token or authorization code.
+    - Client Secret
+      - Is a secret key associated with the client application, used to authenticate the client.
+      - Is used in the OAuth 2.0 Authorization Code Flow to exchange the authorization code for an access token.
+      - Is stored securely and not exposed to the public.
+    - Authorization Code
+      - Is a temporary code issued to the client application after the user authorizes access.
+      - Is used in the OAuth 2.0 Authorization Code Flow to obtain an access token.
+      - Expires after a short period and can only be used once.
+    - Access Token
+      - Is a token issued by the authorization server that allows the client to access protected resources on behalf of the user.
+      - Can be a JWT (JSON Web Token) or a simple string.
+      - Is included in the Authorization header of API requests as a Bearer token.
+      - Has a limited lifespan and may need to be refreshed using a refresh token.
+      - Is used to authenticate API requests and authorize access to resources.
+    - Refresh Token
+      - Is a token used to obtain a new access token without requiring the user to re-authenticate.
+      - Is issued alongside the access token and has a longer lifespan.
+      - Is used in the OAuth 2.0 Refresh Token Flow to refresh the access token when it expires.
+  - Code Challenge
+  - Code Verifier
+  - Grant Type
+  - Implicit Flow
+  - OAuth2
+  - OpenID Connect
+  - PKCE (Proof Key for Code Exchange)
+  - Refresh Token
+  - Resource Owner Password Credentials Flow
+  - Scopes
+  - Token Endpoint
+  - User Info Endpoint
+  - User-Agent Flow
+  - JWT (JSON Web Token)
+  - Bearer Token
+  - Client Credentials Flow
+  - Authorization Server
+  - Resource Server
+  - ID Token
+  - Logout Endpoint
+  - Consent Screen
+  - Dynamic Client Registration
+  - Authorization Header
+  - CORS (Cross-Origin Resource Sharing)
+  - SSO (Single Sign-On)
+  - Session Management
+  - Token Introspection
+  - Token Revocation
+  - Audience (aud)
+  - Issuer (iss)
+  - Subject (sub)
+  - Claims
+  - Scopes and Permissions
+  - OpenID Connect Discovery
+  - JSON Web Signature (JWS)
+  - JSON Web Encryption (JWE)
+  - Proof of Possession
+  - Device Authorization Grant
+  - Authorization Code Flow with PKCE
+  - Implicit Grant Flow
+  - OAuth2 Device Flow
+  - OAuth2 Authorization Code Flow
+  - OAuth2 Client Credentials Flow
+  - OAuth2 Resource Owner Password Credentials Flow
+  - OAuth2 Refresh Token Flow
+  - OAuth2 Scopes and Permissions
+  - OAuth2 Token Exchange

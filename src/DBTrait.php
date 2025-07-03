@@ -1,11 +1,15 @@
 <?php
-trait ProviderDBTrait {
+namespace Auth;
+use PDO;
+
+trait DBTrait {
     protected $pdo = null;
     function getPDO() {
         if ($this->pdo) {
             return $this->pdo;
         }
-        $dbPath = $this->config('DB_NAME', 'database/db.sqlite');
+        // $dbPath = $this->config('DB_NAME', 'database/db.sqlite');
+        $dbPath = $_ENV['DB_NAME'] ?? 'database/db.sqlite';
         $dbPath = realpath($dbPath) ?: realpath($this->base_path($dbPath));
         $db = new PDO('sqlite:' . $dbPath);
         $db->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);

@@ -1,4 +1,5 @@
 <?php
+namespace Auth\Provider;
 class Google extends Provider {
     protected $pdo = null;
     protected $prefix = 'GOOGLE';
@@ -31,7 +32,7 @@ class Google extends Provider {
         ]);
         // var_dump(__LINE__, $token, $data); // Debugging line
         if (empty($data['sub']) && empty($data['email'])) {
-            $this->JsonResponse(['error' => 'User info fetch failed'], 400);
+            throw new \Exception("Invalid token data received from Google");
         }
 
         return [

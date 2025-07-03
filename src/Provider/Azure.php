@@ -1,4 +1,5 @@
 <?php
+namespace Auth\Provider;
 class Azure extends Provider {
     protected $prefix = 'AZURE';
     protected $provider_id = 1;
@@ -30,7 +31,7 @@ class Azure extends Provider {
             "Authorization: Bearer $token"
         ]);
         if (empty($data['userPrincipalName'])) {
-            $this->JsonResponse(['error' => 'User info fetch failed'], 400);
+            throw new \Exception("Invalid token data received from Azure");
         }
         return [
             'provider_id' => $this->provider_id,

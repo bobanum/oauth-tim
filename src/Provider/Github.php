@@ -1,4 +1,6 @@
 <?php
+namespace Auth\Provider;
+
 class Github extends Provider {
     protected $pdo = null;
     protected $prefix = 'GITHUB';
@@ -30,7 +32,7 @@ class Github extends Provider {
         ]);
 
         if (empty($data['login']) && empty($data['id'])) {
-            $this->JsonResponse(['error' => 'User info fetch failed'], 400);
+            throw new \Exception("Invalid token data received from GitHub");
         }
 
         return [

@@ -1,7 +1,8 @@
 <?php
-Dotenv\Dotenv::createImmutable(dirname(__DIR__))->load();
+
+namespace Auth\Provider;
+
 abstract class Provider {
-    use ProviderDBTrait;
     protected $prefix = 'OAUTH';
     protected $client_id;
     protected $client_secret;
@@ -10,33 +11,16 @@ abstract class Provider {
     protected $token_url;
     protected $authorize_url;
     protected $user_info_url;
-    function gotToken($token) {
-        $user = $this->getStmt("SELECT * FROM user WHERE token = ?", [$token])->fetch();
 
-        if (!$user) {
-            $this->JsonResponse(['error' => 'Invalid token'], 403);
-        }
-
-        $this->JsonResponse([
-            'message' => 'Bienvenue, ' . $user['name'],
-            'email' => $user['email']
-        ]);
-    }
-
-    function gotCode($code) {
-        session_start();
+    function processCode($code) {
         $access_token = $this->redeemCode($code);
         if (!$access_token) {
-            $this->JsonResponse(['error' => 'Invalid code'], 400);
+            throw new \Exception("Invalid code received from provider");
         }
 
         $user = $this->redeemToken($access_token);
 
-        $user['user_id'] = $this->getOrCreateUserId($user);
-        $user['token'] = $this->generateToken();
-        setcookie('token', $user['token'], time() + 60 * 60 * 24 * 30, '/', '', false, true); // Secure and HttpOnly
-        $this->updateToken($user);
-        $this->JsonResponse($user);
+        return $user;
     }
 
     function getCurl($url, $headers = [], $data = null) {
@@ -62,8 +46,8 @@ abstract class Provider {
         $response = curl_exec($ch);
 
         if (curl_errno($ch)) {
-            $this->JsonResponse(['error' => 'Request failed: ' . curl_error($ch)], 400);
             curl_close($ch);
+            throw new \Exception("Request failed: " . curl_error($ch));
             return null;
         }
 
@@ -75,7 +59,7 @@ abstract class Provider {
         $postFields = $this->tokenData($code);
         $response = $this->curlExec($this->token_url, [], $postFields);
         if (!$response || !isset($response['access_token'])) {
-            $this->JsonResponse(['error' => 'Invalid response from token endpoint'], 400);
+            throw new \Exception("Invalid response from token endpoint");
         }
         return $response['access_token'];
     }
@@ -85,26 +69,15 @@ abstract class Provider {
 
     function login() {
         $url = $this->authorize_url . '?' . http_build_query($this->loginParams());
-        // var_dump(__LINE__,$url);die;
         header('Location: ' . $url);
         exit;
     }
     function logout() {
         session_start();
         session_destroy();
-        $this->JsonResponse(['message' => 'Déconnecté']);
+        return ['message' => 'Déconnecté'];
     }
 
-    function generateToken() {
-        return bin2hex(random_bytes(32));
-    }
-
-    function JsonResponse($data, $status = 200) {
-        header('Content-Type: application/json');
-        http_response_code($status);
-        echo json_encode($data);
-        exit;
-    }
     function config($var, $default = null) {
         $envVar = strtoupper($this->prefix . '_' . $var);
         if (isset($_ENV[$envVar])) {
@@ -118,13 +91,6 @@ abstract class Provider {
     }
     function app_path($file = null) {
         $result = $_SERVER['DOCUMENT_ROOT'];
-        if ($file) {
-            return $result . '/' . $file;
-        }
-        return $result;
-    }
-    function base_path($file = null) {
-        $result = dirname(__DIR__);
         if ($file) {
             return $result . '/' . $file;
         }
