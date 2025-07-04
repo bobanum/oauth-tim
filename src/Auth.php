@@ -22,14 +22,25 @@ class Auth {
 
     public function handleRequest() {
         if (isset($_GET['logout'])) {
-            $this->provider->logout();
-        } elseif (isset($_GET['code'])) {
-            $this->processCode($_GET['code']);
-        } elseif (isset($_GET['token'])) {
-            $this->provider->processToken($_GET['token']);
-        } else {
-            $this->provider->login();
+            return $this->provider->logout();
         }
+        if (isset($_GET['code'])) {
+            $user = $this->processCode($_GET['code']);
+            return $this->JsonResponse($user);
+        }
+        if (isset($_GET['token'])) {
+            return $this->provider->processToken($_GET['token']);
+        }
+        if (isset($_GET['app_key'])) {
+            $app_key = $_GET['app_key'] ?? null;
+            $app = $this->findAppByKey($app_key);
+            if (!$app->is_active === 1) {
+                die('App not active');
+            }
+            $_SESSION['referer'] = $_SERVER['HTTP_REFERER'] ?? null;
+            $_SESSION['app_key'] = $app_key;
+        }
+        return $this->provider->login();
     }
     public function processCode($code) {
         try {
@@ -40,9 +51,10 @@ class Auth {
 
         $user['user_id'] = $this->getOrCreateUserId($user);
         $user['token'] = $this->generateToken();
+        $_SESSION['login'] = $user->id; // Store user in session
         setcookie('token', $user['token'], time() + 60 * 60 * 24 * 30, '/', '', false, true); // Secure and HttpOnly
+        $_SESSION['token'] = $user['token']; // Store token in session
         $this->updateToken($user);
-        $this->JsonResponse($user);
         return $user;
     }
     static function JsonResponse($data, $status = 200) {

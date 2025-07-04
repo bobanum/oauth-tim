@@ -13,13 +13,14 @@ trait DBTrait {
         $dbPath = realpath($dbPath) ?: realpath($this->base_path($dbPath));
         $db = new PDO('sqlite:' . $dbPath);
         $db->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+        $db->setAttribute(PDO::ATTR_DEFAULT_FETCH_MODE, PDO::FETCH_OBJ);
         $this->pdo = $db;
         return $db;
     }
     function getStmt($query, $params = []) {
         $db = $this->getPDO();
         $stmt = $db->prepare($query);
-        $stmt->setFetchMode(PDO::FETCH_ASSOC);
+        // $stmt->setFetchMode(PDO::FETCH_ASSOC);
         $stmt->execute($params);
         return $stmt;
     }
@@ -85,5 +86,17 @@ trait DBTrait {
 
     function updateToken($user) {
         $this->getStmtInsert('access_token', $this->newTokenData($user));
-    }  
+    }
+    function findAppByKey($app_key) {
+        $SQL = "SELECT * FROM app WHERE app_key = ?";
+        $stmt = $this->getStmt($SQL, [$app_key]);
+        $result = $stmt->fetch();
+        if (!$result) {
+            throw new \Exception("App not found for key: $app_key");
+        }
+        if (empty($result->id)) {
+            throw new \Exception("App ID is empty for key: $app_key");
+        }
+        return $result;
+    }
 }
