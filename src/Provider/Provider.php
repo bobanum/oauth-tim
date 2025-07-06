@@ -14,9 +14,6 @@ abstract class Provider {
 
     function processCode($code) {
         $access_token = $this->redeemCode($code);
-        if (!$access_token) {
-            throw new \Exception("Invalid code received from provider");
-        }
 
         $user = $this->redeemToken($access_token);
 
@@ -57,8 +54,18 @@ abstract class Provider {
 
     function redeemCode($code) {
         $postFields = $this->tokenData($code);
-        $response = $this->curlExec($this->token_url, [], $postFields);
-        if (!$response || !isset($response['access_token'])) {
+        try {
+            $response = $this->curlExec($this->token_url, [], $postFields);
+        } catch (\Exception $e) {
+            throw new \Exception("Invalid token data: " . $e->getMessage());
+        }
+        if (!$response) {
+            throw new \Exception("Invalid response from token endpoint");
+        }
+        if (isset($response['error']) && $response['error'] === 'invalid_grant') {
+            throw new \Exception("Invalid grant", 400);
+        }
+        if (!isset($response['access_token'])) {
             throw new \Exception("Invalid response from token endpoint");
         }
         return $response['access_token'];
@@ -73,11 +80,7 @@ abstract class Provider {
         exit;
     }
     function logout() {
-        session_start();
-        session_destroy();
-        return ['message' => 'Déconnecté'];
     }
-
     function config($var, $default = null) {
         $envVar = strtoupper($this->prefix . '_' . $var);
         if (isset($_ENV[$envVar])) {

@@ -8,8 +8,8 @@ trait DBTrait {
         if ($this->pdo) {
             return $this->pdo;
         }
-        // $dbPath = $this->config('DB_NAME', 'database/db.sqlite');
-        $dbPath = $_ENV['DB_NAME'] ?? 'database/db.sqlite';
+        // $dbPath = $this->config('AUTH_DB_NAME', 'database/db.sqlite');
+        $dbPath = $_ENV['AUTH_DB_NAME'] ?? 'database/db.sqlite';
         $dbPath = realpath($dbPath) ?: realpath($this->base_path($dbPath));
         $db = new PDO('sqlite:' . $dbPath);
         $db->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
@@ -30,7 +30,7 @@ trait DBTrait {
         return $this->getPDO()->lastInsertId();
     }
 
-    function getUserId($user) {
+    function getUserId(array $user) {
         $SQL[] = "SELECT id FROM user";
         $SQL[] = "WHERE login = ?";
         $SQL[] = "AND provider_id = ?";
@@ -43,7 +43,7 @@ trait DBTrait {
         if (!$result) {
             return null;
         }
-        return $result['id'];
+        return $result->id;
     }
     function getOrCreateUserId($user) {
         $user_id = $this->getUserId($user);
@@ -61,12 +61,12 @@ trait DBTrait {
 
     function newUserData($user) {
         $result = [
-            'provider_id' => $user['provider_id'] ?: 0,
-            'login' => $user['login'],
-            'email' => $user['email'] ?? null,
-            'name' => $user['name'] ?? null,
-            'password' => $user['password'] ?? null,
-            'extra' => json_encode($user['response'] ?? []),
+            'provider_id' => $user->provider_id ?: 0,
+            'login' => $user->login,
+            'email' => $user->email ?? null,
+            'name' => $user->name ?? null,
+            'password' => $user->password ?? null,
+            'extra' => json_encode($user->response ?? []),
         ];
         return $result;
     }

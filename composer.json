@@ -1,4 +1,5 @@
 {
+    "name": "bobanum/oauth2025",
     "require": {
         "symfony/dotenv": "^7.3",
         "vlucas/phpdotenv": "^5.6"
@@ -7,5 +8,19 @@
         "psr-4": {
             "Auth\\": "src/"
         }
-    }
+    },
+    "authors": [
+        {
+            "name": "Martin Boudreau",
+            "email": "bobanum@gmail.com"
+        }
+    ],
+    "homepage": "https://githhub.com/bobanum/oauth2025",
+    "support": {
+        "email": "support.email@example.com",
+        "issues": "https://github.com/bobanum/oauth2025/issues",
+        "source": "https://github.com/bobanum/oauth2025"
+    },
+    "license": "MIT",
+    "minimum-stability": "stable"
 }
