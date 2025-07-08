@@ -5,6 +5,8 @@ CREATE TABLE "app" (
 	"app_secret"	TEXT,
 	"description"	TEXT,
 	"contact_email"	TEXT,
+	"providers" TEXT,
+	"databases" TEXT DEFAULT 'db.sqlite',
 	"allowed_referer" TEXT,
 	"allowed_ips" TEXT,
 	"is_active"	BOOLEAN DEFAULT 1,
@@ -22,17 +24,21 @@ CREATE TABLE "api_log" (
 	"requested_at" DATETIME DEFAULT CURRENT_TIMESTAMP,
 	FOREIGN KEY("app_id") REFERENCES app("id")
 );
-CREATE TABLE
-	"user" (
-		"id" INTEGER,
-		"username" TEXT NOT NULL UNIQUE,
-		"password" TEXT NOT NULL,
-		"email" TEXT NOT NULL UNIQUE,
-		"created_at" TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-		"updated_at" TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-		PRIMARY KEY ("id")
-	);
-
+CREATE TABLE "user" (
+	"id"	INTEGER,
+	"provider_id"	INTEGER NOT NULL,
+	"login"	TEXT NOT NULL,
+	"email"	TEXT,
+	"name"	TEXT,
+	"password"	TEXT,
+	"status"	TEXT DEFAULT 1,
+	"extra"	TEXT,
+	"created_at"	DATETIME DEFAULT CURRENT_TIMESTAMP,
+	"updated_at"	DATETIME DEFAULT CURRENT_TIMESTAMP,
+	PRIMARY KEY("id" AUTOINCREMENT),
+	UNIQUE("login","provider_id"),
+	FOREIGN KEY("provider_id") REFERENCES "provider"("id")
+);
 CREATE TABLE
 	"client" (
 		"id" TEXT,
@@ -41,6 +47,19 @@ CREATE TABLE
 		"redirect_uri" TEXT NOT NULL,
 		"grant_types" TEXT NOT NULL,
 		"scope" TEXT,
+		"extra" TEXT,
+		"created_at" TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+		"updated_at" TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+		PRIMARY KEY ("id")
+	);
+CREATE TABLE
+	"provider" (
+		"id" TEXT,
+		"name" TEXT NOT NULL,
+		"prefix" TEXT NOT NULL UNIQUE,
+        "authorize_url" TEXT NOT NULL,
+        "token_url" TEXT NOT NULL,
+        "user_info_url" TEXT NOT NULL,
 		"created_at" TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
 		"updated_at" TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
 		PRIMARY KEY ("id")
@@ -103,16 +122,17 @@ CREATE TABLE
 
 -- Insert dummy data
 INSERT INTO
-	"app" ("id", "name", "app_key", "app_secret", "description", "contact_email", "allowed_referer", "allowed_ips", "is_active")
+	"app" ("id", "name", "app_key", "app_secret", "description", "contact_email", "providers", "databases", "allowed_referer", "allowed_ips", "is_active")
 	VALUES
-	(1, "test", "77b83e64c9a39c4b0f1f0f3b5dadd712", "5a8dc1bbb3a722897d88234987b11327c5d86dfb633f8ebc4c9c2a55371874f6", "Juste un test", "bobanum@gmail.com", "localhost:5555", null, true);
+	(1, "test", "77b83e64c9a39c4b0f1f0f3b5dadd712", "5a8dc1bbb3a722897d88234987b11327c5d86dfb633f8ebc4c9c2a55371874f6", "Juste un test", "bobanum@gmail.com", "google|azure|github", "kweez.sqlite|school.sqlite|oauth.sqlite", "localhost:5555", null, true);
+
 INSERT INTO
-	"user" ("id", "username", "password", "email")
+	"provider" ("id", "name", "prefix", "authorize_url", "token_url", "user_info_url")
 VALUES
-	(1, "johndoe", "$2a$06$7pdBjl4PJ155EuwoNnDkfO1LHxA2BO3BZCKZjwYSvWwEgoSrXCGBu", "johndoe@example.com"),
-	(2, "janedoe", "$2a$06$DTXFz8AqdxFz3qJ4XUGQ8.7lrbY7ZvrRRz9r5TJOL78uC5EoD8hBS", "janedoe@example.com"),
-	(3, "jimmydoe", "$2a$06$7rDt8UCIBEnOnWnD0R7XMOUEPMhGieyXhyak4WTQwCQaLFgJzT0i.", "jimmydoe@example.com"),
-	(4, "jinnydoe", "$2a$06$do/9gmsyK0BnNZr6WdNryOKS1d5I/nvrFJNQcNtwFaEEqoW/y/3OO", "jinnydoe@example.com");
+	("1", "Microsoft", "AZURE", "https://login.microsoftonline.com/{$tenant}/oauth2/v2.0/authorize", "https://login.microsoftonline.com/{$tenant}/oauth2/v2.0/token", "https://graph.microsoft.com/v1.0/me"),
+	("2", "Google", "GOOGLE", "https://accounts.google.com/o/oauth2/v2/auth", "https://oauth2.googleapis.com/token", "https://www.googleapis.com/oauth2/v3/userinfo"),
+	("3", "Facebook", "FACEBOOK", "https://www.facebook.com/v10.0/dialog/oauth", "https://graph.facebook.com/v10.0/oauth/access_token", "https://graph.facebook.com/me?fields=id,name,email,picture"),
+	("4", "Github", "GITHUB", "https://github.com/login/oauth/authorize", "https://github.com/login/oauth/access_token", "https://api.github.com/user");
 
 INSERT INTO
 	"client" ("id", "secret", "name", "redirect_uri", "grant_types", "scope")
@@ -149,3 +169,4 @@ VALUES
 	(1, "read", "Allows reading data"),
 	(2, "write", "Allows writing data"),
 	(3, "admin", "Allows administrative actions");
+

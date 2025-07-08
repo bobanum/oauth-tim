@@ -14,7 +14,6 @@ $auth = new Auth($provider);
 // }
 // TODO - check if app is active
 // TODO - check if provider is supported
-// var_dump($app); die();
 // if ($auth->isLoggedIn()) {
 //     $auth->JsonResponse(['status' => 'connected']);
 // }

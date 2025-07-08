@@ -30,7 +30,6 @@ class Google extends Provider {
             "Authorization: Bearer $token",
             // "User-Agent: MyApp",
         ]);
-        // var_dump(__LINE__, $token, $data); // Debugging line
         if (empty($data['sub']) && empty($data['email'])) {
             throw new \Exception("Invalid token data received from Google");
         }

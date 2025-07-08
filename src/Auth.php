@@ -2,19 +2,18 @@
 
 namespace Auth;
 
-// use Dotenv\Dotenv;
-
-// Dotenv::createImmutable(dirname(__DIR__))->load();
-
 class Auth {
-    use DBTrait;
+    use UsesDB;
+    static public $default_provider = 'google'; // Default provider if none is specified
     protected $provider;
 
     public function __construct($provider) {
         if (is_string($provider)) {
-            $provider = "Auth\\Provider\\$provider"; // Namespaced class
+            $provider = ucfirst(trim($provider));
+            $provider = "Auth\\Provider\\{$provider}"; // Namespaced class
             $provider = new $provider();
-        } elseif (!is_object($provider)) {
+        }
+        if (!is_object($provider)) {
             throw new \Exception("Invalid provider type. Must be a string or an object.");
         }
         $this->provider = $provider;
@@ -56,7 +55,7 @@ class Auth {
                 $location = [
                     ($_SERVER['HTTPS'] ?? '') === 'on' ? 'https://' : 'http://',
                     $_SERVER['HTTP_HOST'],
-                    '?app_key=' . $_SESSION['app_key'] ?? '',
+                    // '?app_key=' . $_SESSION['app_key'] ?? '',
                 ];
                 $location = implode('', $location);
             }
@@ -68,25 +67,27 @@ class Auth {
         }
         if (isset($_GET['app_key'])) {
             $app_key = $_GET['app_key'] ?? null;
-            $app = $this->findAppByKey($app_key);
+            $app = App::fromKey($app_key);
             if (!$app->is_active === 1) {
                 die('App not active');
             }
             $_SESSION['referer'] = $_SERVER['HTTP_REFERER'] ?? null;
             $_SESSION['app_key'] = $app_key;
+            if (!empty($app->databases)) {
+                $_SESSION['databases'] = explode('|', $app->databases);
+            }
         }
         return $this->provider->login();
     }
     public function processCode($code) {
-        $user = $this->provider->processCode($code);
-
-        $user['user_id'] = $this->getOrCreateUserId($user);
-        $user['token'] = $this->generateToken();
-        $_SESSION['login'] = $user['login']; // Store user in session
-        $_SESSION['name'] = $user['name']; // Store user in session
-        setcookie('token', $user['token'], time() + 60 * 60 * 24 * 30, '/', '', false, true); // Secure and HttpOnly
-        $_SESSION['token'] = $user['token']; // Store token in session
-        $this->updateToken($user);
+        $user = new User($this->provider->processCode($code));
+        $token = $user->getToken();
+        $user->getOrCreateUser();
+        $_SESSION['login'] = $user->login; // Store user in session
+        $_SESSION['name'] = $user->name; // Store user in session
+        setcookie('token', $token, time() + 60 * 60 * 24 * 30, '/', '', false, true); // Secure and HttpOnly
+        $_SESSION['token'] = $token; // Store token in session
+        $user->updateToken();
         return $user;
     }
     static function JsonResponse($data, $status = 200) {
@@ -96,13 +97,7 @@ class Auth {
         exit;
     }
 
-    function generateToken() {
-        return bin2hex(random_bytes(32));
-    }
-
     static function isLoggedIn(): bool {
-        // var_dump(__LINE__, $_COOKIE);
-        // die; // Debugging line
         if (!isset($_COOKIE['token'])) {
             return false;
         }
@@ -121,29 +116,32 @@ class Auth {
         }
         return $result;
     }
-    static function getAppKey() {
-        if (isset($_SESSION['app_key'])) {
-            if (!isset($_GET['app_key']) || $_GET['app_key'] === $_SESSION['app_key']) {
-                return $_SESSION['app_key'];
-            }
+    static function getApp($app_key = null) {
+        if ($app_key === null) {
+            $app_key = self::getAppKey();
         }
-        if (isset($_GET['app_key'])) {
-            $app = self::getAppFromKey($_GET['app_key']);
-            if ($app) {
-                $_SESSION['app_key'] = $_GET['app_key'];
-                return $_GET['app_key'];
-            }
+        $app = App::fromKey($app_key);
+        if (!$app) {
             throw new \Exception("Invalid app key: " . $_GET['app_key']);
         }
-        throw new \Exception("App key is required");
+        return $app;
     }
-    static function getAppFromKey($app_key) {
-        $pdo = new \PDO('sqlite:../database/oauth.sqlite');
-        $sql = "SELECT * FROM app WHERE app_key = ? AND is_active = 1 LIMIT 1";
-        $stmt = $pdo->prepare($sql);
-        $stmt->execute([$app_key]);
-        $app = $stmt->fetch();
-
-        return $app ?? null;
+    static function getAppKey() {
+        $app_key = $_SESSION['app_key'] ?? null;
+        if ($app_key) {
+            if (!isset($_GET['app_key']) || $_GET['app_key'] === $app_key) {
+                return $app_key;
+            }
+        }
+        $app_key = $_GET['app_key'] ?? null;
+        if (!$app_key) {
+            throw new \Exception("App key is required");
+        }
+        $app = App::fromKey($app_key);
+        if (!$app) {
+            throw new \Exception("Invalid app key: " . $_GET['app_key']);
+        }
+        $_SESSION['app_key'] = $app_key;
+        return $app_key;
     }
 }
