@@ -14,9 +14,7 @@ abstract class Provider {
 
     function processCode($code) {
         $access_token = $this->redeemCode($code);
-
         $user = $this->redeemToken($access_token);
-
         return $user;
     }
 
@@ -74,10 +72,8 @@ abstract class Provider {
     abstract function tokenData($code);
     abstract function loginParams();
 
-    function login() {
-        $url = $this->authorize_url . '?' . http_build_query($this->loginParams());
-        header('Location: ' . $url);
-        exit;
+    function loginUrl() {
+        return $this->authorize_url . '?' . http_build_query($this->loginParams());
     }
     function logout() {
     }
@@ -98,5 +94,32 @@ abstract class Provider {
             return $result . '/' . $file;
         }
         return $result;
+    }
+    /**
+     * Retrieves an authentication provider instance based on the given provider name.
+     *
+     * @param string $provider The name or identifier of the authentication provider.
+     * @return mixed The provider instance corresponding to the specified provider, or null if not found.
+     */
+    static public function fromName($provider) {
+        if (is_object($provider)) {
+            return $provider;
+        }
+        if (is_string($provider)) {
+            $provider = __NAMESPACE__ . '\\' . ucfirst(trim($provider));
+            return new $provider();
+        }
+        throw new \Exception("Invalid provider type. Must be a string or an object.");
+    }
+    function redirect() {
+        $location = $this->loginUrl();
+        $status = 302;
+        $referer = $_SESSION['referer'] ?? $_SERVER['HTTP_REFERER'] ?? null;
+        if ($referer && strpos($_SERVER['HTTP_HOST'], $referer) === false) {
+            return ['status' => 'redirect', 'location' => $location, 'code' => $status];
+        }
+        $_SESSION['referer'] = $referer ?? str_replace($_SERVER['SCRIPT_NAME'], '', $_SERVER['PHP_SELF']) ?? '/';
+        header('Location: ' . $location, true, $status);
+        exit;
     }
 }

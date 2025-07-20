@@ -17,15 +17,16 @@ class User {
 	public $name;
 	/** @var string|null $password The password of the user */
 	public $password;
-	/** @var string|null $status The status of the user */
-	public $status = '1';
+	/** @var integer|null $status The status of the user */
+	public $status = 1; // 1 = active, 0 = inactive
 	/** @var string|null $extra Additional information about the user */
 	public $extra;
 	/** @var string $created_at The timestamp when the user was created */
 	public $created_at;
 	/** @var string $updated_at The timestamp when the user was last updated */
 	public $updated_at;
-	public $_token;
+    /** @var string $_token The token for the user */
+	private $_token;
 
 	/**
 	 * Constructor to initialize the User object with given data.
@@ -136,7 +137,7 @@ class User {
     function updateToken() {
         $this->insert('access_token', $this->newTokenData());
     }
-    function findAppByKey($app_key) {
+    function zzzfindAppByKey($app_key) {
         $SQL = "SELECT * FROM app WHERE app_key = ?";
         $stmt = $this->getStmt($SQL, [$app_key]);
         $result = $stmt->fetch();

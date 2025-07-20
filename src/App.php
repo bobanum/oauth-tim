@@ -2,11 +2,13 @@
 
 namespace Auth;
 
+use Auth\Provider\Provider;
 use RestInPeace\HasAccessors;
 
 class App {
 	use UsesDB;
 	use HasAccessors;
+	use HasHTML;
 
 	/** @var int $id The unique identifier for the app */
 	public $id;
@@ -70,14 +72,14 @@ class App {
 	}
 	public function set_providers($value) {
 		$this->_providers = $this->explode($value);
-		return $this;	
+		return $this;
 	}
 	public function get_databases() {
 		return $this->_databases;
 	}
 	public function set_databases($value) {
 		$this->_databases = $this->explode($value);
-		return $this;	
+		return $this;
 	}
 
 	public function get_allowed_referer() {
@@ -85,21 +87,21 @@ class App {
 	}
 	public function set_allowed_referer($value) {
 		$this->_allowed_referers = $this->explode($value);
-		return $this;	
+		return $this;
 	}
 	public function get_allowed_ips() {
 		return $this->_allowed_ips;
 	}
 	public function set_allowed_ips($value) {
 		$this->_allowed_ips = $this->explode($value);
-		return $this;	
+		return $this;
 	}
 	public function explode($value, $delimiter = "|", $remove_empty = true) {
 		if (empty($value)) {
 			return [];
 		}
 		$result = $value;
-		
+
 		if (is_string($value)) {
 			$result = explode($delimiter, $value);
 		}
@@ -113,11 +115,40 @@ class App {
 		$stmt = self::execQuery($SQL, [$app_key]);
 		$result = $stmt->fetch();
 		if (!$result) {
-			throw new \Exception("App not found for key: $app_key");
-		}
-		if (empty($result->id)) {
-			throw new \Exception("App ID is empty for key: $app_key");
+			throw new \Exception("App not found for key: $app_key", 401);
 		}
 		return $result;
+	}
+	function html_providers() {
+		$html_providers = [];
+		foreach ($this->providers as $provider) {
+			$params['app_key'] = $this->app_key;
+			$params['provider'] = $provider;
+			$attributes['target'] = '_blank';
+			$attributes['href'] = $this->url('http://localhost:9999', $params);
+			$txt = "Connect using " . ucfirst($provider);
+			$img = $this->tag('img', '', [
+				'src' => $this->url("img/logos.svg#{$provider}"),
+				'alt' => $txt,
+				'width' => 24,
+				'height' => 24,
+			]);
+			$html_providers[] = $this->tag('a', "$img<span>$txt</span>", $attributes);
+		}
+		if (empty($html_providers)) {
+			return '';
+		}
+		$html_providers = implode(' | ', $html_providers);
+		$html_providers = '<div class="providers">' . $html_providers . '</div>';
+		return $html_providers;
+	}
+	function validateProvider($provider) {
+		if (count($this->providers) === 0) {
+			return null; // No providers available
+		}
+		if (!in_array($provider, $this->providers)) {
+			$provider = $this->providers[0]; // Return the first provider if the specified one is not found
+		}
+		return Provider::fromName($provider);
 	}
 }
