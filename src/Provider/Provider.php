@@ -1,7 +1,7 @@
 <?php
 
 namespace Auth\Provider;
-
+use Auth\Response;
 abstract class Provider {
     protected $prefix = 'OAUTH';
     protected $client_id;
@@ -111,15 +111,13 @@ abstract class Provider {
         }
         throw new \Exception("Invalid provider type. Must be a string or an object.");
     }
-    function redirect() {
+    function redirect() : Response {
         $location = $this->loginUrl();
-        $status = 302;
         $referer = $_SESSION['referer'] ?? $_SERVER['HTTP_REFERER'] ?? null;
         if ($referer && strpos($_SERVER['HTTP_HOST'], $referer) === false) {
-            return ['status' => 'redirect', 'location' => $location, 'code' => $status];
+            return new Response(['status' => 'redirect', 'location' => $location, 'code' => 302], 403);
         }
         $_SESSION['referer'] = $referer ?? str_replace($_SERVER['SCRIPT_NAME'], '', $_SERVER['PHP_SELF']) ?? '/';
-        header('Location: ' . $location, true, $status);
-        exit;
+        return Response::redirect($location);
     }
 }

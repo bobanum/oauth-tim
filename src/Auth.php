@@ -3,6 +3,7 @@
 namespace Auth;
 
 use Auth\Provider\Provider;
+
 class Auth {
     use UsesDB;
     use Trait\Debug;
@@ -26,24 +27,6 @@ class Auth {
         }
         throw new \Exception("Invalid provider type. Must be a string or an object.");
     }
-    /**
-     * Generates and returns HTTP headers for API requests.
-     *
-     * @param string $content_type The value for the 'Content-Type' header. Defaults to 'application/json'.
-     * @return array An associative array of HTTP headers.
-     */
-    static function headers($content_type = 'application/json', $extra_headers = []) {
-        header('Access-Control-Expose-Headers: Location');
-        header('Content-Type: ' . $content_type . '; charset=utf-8');
-        // header('Access-Control-Allow-Origin: *');
-        header('Access-Control-Allow-Origin: http://localhost:8888');
-        header('Access-Control-Allow-Methods: GET, POST, PUT, DELETE, OPTIONS');
-        // PHP CORS headers
-        header("Access-Control-Allow-Credentials: true"); // Required for cookies
-        foreach ($extra_headers as $key => $value) {
-            header("{$key}: {$value}");
-        }
-    }
 
     /**
      * Logs out the current user by clearing authentication data.
@@ -51,15 +34,15 @@ class Auth {
      * This static method handles the process of logging out a user,
      * such as destroying session data or removing authentication tokens.
      *
-     * @return void
+     * @return Response A response object indicating the logout status.
      */
-    static function logout() {
+    static function logout(): Response {
         if (!session_id()) {
             session_start();
         }
         session_destroy();
         setcookie('PHPSESSID', '', time() - 3600, '/', '', false, true); // Secure and HttpOnly
-        return self::JsonResponse(['message' => 'Logged out successfully']);
+        return new Response(['message' => 'Logged out successfully']);
     }
 
     /**
@@ -68,31 +51,34 @@ class Auth {
      * This static method should be called to perform all necessary steps to log out a user,
      * such as clearing session data, cookies, or tokens.
      *
-     * @return void
+     * @return Response A response object indicating the logout status.
      */
-    static function handleLogout() {
-        if (isset($_GET['logout'])) {
-            return self::logout();
-        }
+    static function handleLogout(): Response {
+        if (!isset($_GET['logout'])) return Response::empty();
+        return self::logout();
     }
 
-    static public function handleCode(Provider $provider) {
-        if (!isset($_GET['code'])) return;
-        try {
-            $user = self::processCode($provider, $_GET['code']);
-        } catch (\Exception $e) {
-            if ($e->getCode() === 400) {
-                return $provider->loginUrl();
-            }
-            return self::JsonResponse(['error' => $e->getMessage()], 400);
+    static public function handleCode(Provider $provider): Response {
+        if (!isset($_GET['code'])) return Response::empty();
+        $user = self::processCode($provider, $_GET['code']);
+        if (!$user) {
+            return new Response(['error' => 'Invalid code'], 403);
         }
+        // try {
+        // } catch (\Exception $e) {
+        //     if ($e->getCode() === 400) {
+        //         return $provider->loginUrl();
+        //     }
+        //     return self::JsonResponse(['error' => $e->getMessage()], 400);
+        // }
         $location = self::getReferer();
         unset($_SESSION['referer']);
-        if (!$location) {
-            $location = '/'; // Default redirect location if referer is not set
-        }
-        header('Location: ' . $location);
-        die;
+        return Response::redirect($location ?? '/', 302);
+        // if (!$location) {
+        //     $location = '/'; // Default redirect location if referer is not set
+        // }
+        // header('Location: ' . $location);
+        // die;
     }
     static public function getReferer() {
         if (!empty($_SESSION['referer'])) {
@@ -117,23 +103,15 @@ class Auth {
         $user->updateToken();
         return $user;
     }
-    static function redirect($location, $status = 302) {
+    static function redirect($location, $status = 302): Response {
         $referer = $_SESSION['referer'] ?? $_SERVER['HTTP_REFERER'] ?? null;
         if ($referer && strpos($_SERVER['HTTP_HOST'], $referer) === false) {
-            return self::JsonResponse(['status' => 'redirect', 'location' => $location, 'code' => $status], 403);
+            return new Response(['status' => 'redirect', 'location' => $location, 'code' => $status], 403);
         }
         $_SESSION['referer'] = $referer ?? str_replace($_SERVER['SCRIPT_NAME'], '', $_SERVER['PHP_SELF']) ?? '/';
-        header('Location: ' . $location, true, $status);
-        exit;
-    }
-    static function JsonResponse($data, $status = 200, $exit = true) {
-        header('Content-Type: application/json');
-        http_response_code($status);
-        echo json_encode($data);
-        if ($exit) {
-            exit;
-        }
-        return $data;
+        // header('Location: ' . $location, true, $status);
+        // exit;
+        return Response::redirect($location, $status);
     }
 
     static function isLoggedIn(): bool {
@@ -171,34 +149,35 @@ class Auth {
         $app_key = $_SESSION['app_key'] ?? null;
         return $app_key;
     }
-    static public function main() {
-        self::headers();
-        self::handleLogout();
+    static public function main(): Response {
+        $response = self::handleLogout();
+        if (!$response->empty) return $response;
 
         $app_key = self::getAppKey();
         if (!$app_key) {
-            return self::JsonResponse(['error' => 'App key is required'], 400);
+            return new Response(['error' => 'App key is required'], 400);
         }
-        if (!self::isLoggedIn()) {
-            $_SESSION['referer'] = $_SESSION['referer'] ?? $_SERVER['HTTP_REFERER'] ?? null;
-            $app = App::fromKey($app_key);
-            if (!$app) {
-                return self::JsonResponse(['error' => 'Invalid app key: ' . $app_key], 403);
-            }
-            if (!$app->is_active === 1) {
-                return self::JsonResponse(['error' => 'App not active'], 403);
-            }
+        if (self::isLoggedIn()) return Response::empty();
+        $_SESSION['referer'] = $_SESSION['referer'] ?? $_SERVER['HTTP_REFERER'] ?? null;
+        $app = App::fromKey($app_key);
+        if (!$app) {
+            return new Response(['error' => 'Invalid app key: ' . $app_key], 403);
+        }
+        if (!$app->is_active === 1) {
+            return new Response(['error' => 'App not active'], 403);
+        }
 
-            $provider = $app->validateProvider($_GET['provider'] ?? self::$default_provider);
-            if (!$provider) {
-                return self::JsonResponse(['error' => 'Invalid provider'], 403);
-            }
-            self::handleCode($provider); // Process the code if present
-            $_SESSION['app_key'] = $app_key;
-            if (!empty($app->databases)) {
-                $_SESSION['databases'] = explode('|', $app->databases);
-            }
-            return $provider->redirect();
+        $provider = $app->validateProvider($_GET['provider'] ?? self::$default_provider);
+        if (!$provider) {
+            return new Response(['error' => 'Invalid provider'], 403);
         }
+        $response = self::handleCode($provider); // Process the code if present
+        // self::vdf($response);
+        if (!$response->empty) return $response;
+        $_SESSION['app_key'] = $app_key;
+        if (!empty($app->databases)) {
+            $_SESSION['databases'] = explode('|', $app->databases);
+        }
+        return $provider->redirect();
     }
 }
