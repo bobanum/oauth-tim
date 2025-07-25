@@ -7,7 +7,6 @@ use Auth\Provider\Provider;
 class Auth {
     use UsesDB;
     use Trait\Debug;
-    static public $default_provider = 'google'; // Default provider if none is specified
 
     /**
      * Retrieves an authentication provider instance based on the given provider name.
@@ -42,6 +41,7 @@ class Auth {
         }
         session_destroy();
         setcookie('PHPSESSID', '', time() - 3600, '/', '', false, true); // Secure and HttpOnly
+        setcookie('token', '', time() - 3600, '/', '', false, true); // Secure and HttpOnly
         return new Response(['message' => 'Logged out successfully']);
     }
 
@@ -64,21 +64,10 @@ class Auth {
         if (!$user) {
             return new Response(['error' => 'Invalid code'], 403);
         }
-        // try {
-        // } catch (\Exception $e) {
-        //     if ($e->getCode() === 400) {
-        //         return $provider->loginUrl();
-        //     }
-        //     return self::JsonResponse(['error' => $e->getMessage()], 400);
-        // }
+        
         $location = self::getReferer();
         unset($_SESSION['referer']);
         return Response::redirect($location ?? '/', 302);
-        // if (!$location) {
-        //     $location = '/'; // Default redirect location if referer is not set
-        // }
-        // header('Location: ' . $location);
-        // die;
     }
     static public function getReferer() {
         if (!empty($_SESSION['referer'])) {
@@ -87,7 +76,6 @@ class Auth {
             $result = [
                 ($_SERVER['HTTPS'] ?? '') === 'on' ? 'https://' : 'http://',
                 $_SERVER['HTTP_HOST'],
-                // '?app_key=' . $_SESSION['app_key'] ?? '',
             ];
             return implode('', $result);
         }
@@ -99,6 +87,7 @@ class Auth {
         $_SESSION['login'] = $user->login; // Store user in session
         $_SESSION['name'] = $user->name; // Store user name in session
         $_SESSION['token'] = $token; // Store token in session
+        unset($_SESSION['provider']);
         setcookie('token', $token, time() + 60 * 60 * 24 * 30, '/', '', false, true); // Secure and HttpOnly
         $user->updateToken();
         return $user;
@@ -109,8 +98,6 @@ class Auth {
             return new Response(['status' => 'redirect', 'location' => $location, 'code' => $status], 403);
         }
         $_SESSION['referer'] = $referer ?? str_replace($_SERVER['SCRIPT_NAME'], '', $_SERVER['PHP_SELF']) ?? '/';
-        // header('Location: ' . $location, true, $status);
-        // exit;
         return Response::redirect($location, $status);
     }
 
@@ -167,17 +154,25 @@ class Auth {
             return new Response(['error' => 'App not active'], 403);
         }
 
-        $provider = $app->validateProvider($_GET['provider'] ?? self::$default_provider);
-        if (!$provider) {
-            return new Response(['error' => 'Invalid provider'], 403);
-        }
-        $response = self::handleCode($provider); // Process the code if present
-        // self::vdf($response);
-        if (!$response->empty) return $response;
-        $_SESSION['app_key'] = $app_key;
         if (!empty($app->databases)) {
             $_SESSION['databases'] = explode('|', $app->databases);
         }
-        return $provider->redirect();
+        $_SESSION['provider'] = $_SESSION['provider'] ?? $_GET['provider'] ?? null;
+        $provider = $app->validateProvider($_SESSION['provider']);
+        if ($provider === null) return new Response(['error' => 'Invalid provider', 'code' => 403], 403);
+        if ($provider instanceof Provider) {
+            unset($_SESSION['provider']);
+            $response = self::handleCode($provider); // Process the code if present
+            if (!$response->empty) return $response;
+            return $provider->redirect();
+        }
+        $responseData = [
+            'error' => 'Choose a provider',
+            'status' => 'choose',
+            'signup' => $app->signup == 1,
+            'providers' => $provider,
+            'html' => $app->html_signup() . $app->html_providers_buttons($provider)
+        ];
+        return new Response($responseData, 403);
     }
 }

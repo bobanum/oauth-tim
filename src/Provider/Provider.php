@@ -114,6 +114,7 @@ abstract class Provider {
     function redirect() : Response {
         $location = $this->loginUrl();
         $referer = $_SESSION['referer'] ?? $_SERVER['HTTP_REFERER'] ?? null;
+        // var_dump($referer);
         if ($referer && strpos($_SERVER['HTTP_HOST'], $referer) === false) {
             return new Response(['status' => 'redirect', 'location' => $location, 'code' => 302], 403);
         }

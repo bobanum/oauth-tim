@@ -22,6 +22,8 @@ class App {
 	public $description;
 	/** @var string|null $contact_email The contact email for the app */
 	public $contact_email;
+	/** @var bool $signup Indicates if the app supports signup */
+	public $signup;
 	/** @var array|null $_providers The providers associated with the app */
 	public $_providers;
 	/** @var array|null $_databases The databases associated with the app */
@@ -110,7 +112,7 @@ class App {
 		}
 		return $result;
 	}
-	static function fromKey($app_key) {
+	static function fromKey($app_key): App {
 		$SQL = "SELECT * FROM app WHERE app_key = ?";
 		$stmt = self::execQuery($SQL, [$app_key]);
 		$result = $stmt->fetch();
@@ -119,36 +121,88 @@ class App {
 		}
 		return $result;
 	}
-	function html_providers() {
-		$html_providers = [];
-		foreach ($this->providers as $provider) {
-			$params['app_key'] = $this->app_key;
-			$params['provider'] = $provider;
-			$attributes['target'] = '_blank';
-			$attributes['href'] = $this->url('http://localhost:9999', $params);
-			$txt = "Connect using " . ucfirst($provider);
-			$img = $this->tag('img', '', [
-				'src' => $this->url("img/logos.svg#{$provider}"),
-				'alt' => $txt,
-				'width' => 24,
-				'height' => 24,
-			]);
-			$html_providers[] = $this->tag('a', "$img<span>$txt</span>", $attributes);
+	function html_provider_link($provider, $url) {
+		$params = [];
+		$params['app_key'] = $this->app_key;
+		$params['provider'] = $provider;
+		$attributes['target'] = '_blank';
+		$attributes['href'] = $url;
+		$txt = "Connect using " . ucfirst($provider);
+		$img = $this->tag('img', '', [
+			'src' => $this->url("img/logos.svg#{$provider}"),
+			'alt' => $txt,
+			'width' => 24,
+			'height' => 24,
+		]);
+		$result = $this->tag('a', "$img<span>$txt</span>", $attributes);
+
+		return $result;
+	}
+	function html_providers_links($providers = []) {
+		$result = [];
+		foreach ($providers as $provider => $url) {
+			$result[] = $this->html_provider_link($provider, $url);
 		}
-		if (empty($html_providers)) {
-			return '';
+		$result = implode(' | ', $result);
+		$result = '<div class="providers">' . $result . '</div>';
+		return $result;
+	}
+	function html_provider_button($provider) {
+		$txt = "Connect using " . ucfirst($provider);
+		$img = $this->tag('img', '', [
+			'src' => $this->url("img/logos.svg#{$provider}"),
+			'alt' => $txt,
+			'width' => 24,
+			'height' => 24,
+		]);
+		$result = $this->tag('button', $img . $txt, [
+			'type' => 'button',
+			'onclick' => 'Api.callProvider(\'' . $provider . '\')',
+		]);
+		return $result;
+	}
+	function html_providers_buttons($providers = []) {
+		$result = [];
+		foreach ($providers as $provider => $url) {
+			$result[] = $this->html_provider_button($provider);
 		}
-		$html_providers = implode(' | ', $html_providers);
-		$html_providers = '<div class="providers">' . $html_providers . '</div>';
-		return $html_providers;
+		$result = implode(' | ', $result);
+		$result = '<div class="providers">' . $result . '</div>';
+		return $result;
+	}
+	function html_signup() {
+		if (!$this->signup) return '';
+		return '<form action="">' .
+			'<div>' .
+			'<label for="username">Username:</label>' .
+			'<input type="text" id="username" name="username" required>' .
+			'</div>' .
+			'<div>' .
+			'<label for="password">Password:</label>' .
+			'<input type="password" id="password" name="password" required>' .
+			'</div>' .
+			'<div>' .
+			'<button type="submit">Login</button>' .
+			'<button type="button">Cancel</button>' .
+			'</div>' .
+			'<div>' .
+			'<a href="/?forgotten_password">Forgotten password</a>' .
+			'</div>' .
+			'</form>';
 	}
 	function validateProvider($provider) {
-		if (count($this->providers) === 0) {
-			return null; // No providers available
+		if ($provider) {
+			if (!in_array($provider, $this->providers)) return null;
+			return Provider::fromName($provider);
 		}
-		if (!in_array($provider, $this->providers)) {
-			$provider = $this->providers[0]; // Return the first provider if the specified one is not found
+		if ($this->signup || count($this->providers) > 1) {
+			$providers = array_map(fn($name) => (Provider::fromName($name))->loginUrl(), $this->providers);
+			// var_dump($providers);
+			return array_combine($this->providers, $providers);
 		}
-		return Provider::fromName($provider);
+		if (count($this->providers) === 1) {
+			return Provider::fromName($this->providers[0]);
+		}
+		return null;
 	}
 }

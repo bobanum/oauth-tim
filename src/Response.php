@@ -64,16 +64,16 @@ class Response {
 	public $sent = false;
 	public $headers;
 	public $empty = false;
-	public function __construct($content = null, $code = null) {
+	public function __construct($content = null, $code = null, $headers = []) {
 		$this->content = $content;
 		if (is_array($content) && array_key_exists('status', $content) && array_key_exists('code', $content)) {
 			$code = $code ?? $content['code'];
 		}
 		$this->code = $code ?? 200;
+		$this->headers = array_merge(self::$default_headers, $headers);
 
 		$this->contentType = 'application/json';
 		$this->options = self::$json_options;
-		$this->headers = self::$default_headers;
 	}
 	public function __get($name) {
 		$get_name = 'get_' . $name;
