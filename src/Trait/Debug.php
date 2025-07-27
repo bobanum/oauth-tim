@@ -3,83 +3,74 @@
 namespace Auth\Trait;
 
 trait Debug {
+    static public $width = 80;
     static public $fileName = 'debug.txt';
-    static public function vd() {
-        echo "<pre>\n";
-        echo str_repeat("\u{2501}", 80) . "\n";
-        echo sprintf("%s::%s:<b>%s</b>\n", debug_backtrace()[1]['class'] ?? debug_backtrace()[0]['file'], debug_backtrace()[1]['function'], debug_backtrace()[0]['line']);
-        foreach (func_get_args() as $arg) {
-            echo str_repeat("\u{2500}", 80) . "\n";
-            var_export($arg);
-            echo "\n";
+    static public function format($caller, $callee, ...$args) {
+        $seps = ["―", "═", "■", ];
+        $seps = array_map(fn($s) => str_repeat($s, self::$width), $seps);
+        $result[] = $seps[2];
+        $result[] = self::formatHeader($caller, $callee);
+        $result[] = $seps[1];
+        foreach ($args as $arg) {
+            $result[] = var_export($arg, true);
+            $result[] = $seps[0];
         }
-        echo str_repeat("\u{2501}", 80) . "\n";
-        echo "</pre>";
+        // $result[] = $seps[2];
+        return implode("\n", $result);
+    }
+    static public function vd() {
+        $result = ['<pre>', self::format(debug_backtrace()[0], debug_backtrace()[1], ...func_get_args()), '</pre>'];
+        echo implode("\n", $result);
     }
     static public function vdd() {
-        echo "<pre>\n";
-        echo str_repeat("\u{2501}", 80) . "\n";
-        echo sprintf("%s::%s:<b>%s</b>\n", debug_backtrace()[1]['class'] ?? debug_backtrace()[0]['file'], debug_backtrace()[1]['function'], debug_backtrace()[0]['line']);
-        foreach (func_get_args() as $arg) {
-            echo str_repeat("\u{2500}", 80) . "\n";
-            var_export($arg);
-            echo "\n";
-        }
-        echo str_repeat("\u{2501}", 80) . "\n";
-        echo "</pre>";
+        $result = ['<pre>', self::format(debug_backtrace()[0], debug_backtrace()[1], ...func_get_args()), '</pre>'];
+        echo implode("\n", $result);
         die;
     }
     static public function vdj() {
         header('Content-Type: application/json');
-        [$caller, $callee] = debug_backtrace();
         $result = [];
-        $result['file'] = $caller['file'];
-        $result['line'] = $caller['line'];
-        $result['function'] = $callee['function'];
-        if (!empty($callee['class'])) {
-            $result['function'] = $callee['class'] . "::" . $result['function'];
-        }
+        $result['file'] = self::formatHeader(...debug_backtrace());
+
         $dump = func_get_args();
         $dump = array_combine(array_map(fn($i) => "var " . $i, array_keys($dump)), $dump);
         $result += $dump;
-        // array_push($result, ...$dump);
-        // $result['dump'] = func_get_args();
         echo json_encode($result, JSON_PRETTY_PRINT);
         die;
     }
-    static public function vdf() {
-        // var_dump($_SERVER);die;
-        $file = $_SERVER['DOCUMENT_ROOT'] . '/' . self::$fileName;
-        header('Content-Type: application/json');
-        $bt = debug_backtrace();
-        $caller = $bt[0];
-        $callee = $bt[1] ?? null;
-        $result = [];
-        $caller['file'] = str_replace([$_SERVER['DOCUMENT_ROOT'], dirname($_SERVER['DOCUMENT_ROOT'])], '', $caller['file']);
-        $caller['file'] = str_replace('\\', '/', $caller['file']);
-        $caller['file'] = trim($caller['file'], '/');
-        $result['file'] = sprintf("%s (line %d)", $caller['file'], $caller['line']);
-        $dump = func_get_args();
+    static function trimLeft($string1, $string2) {
+        while ($string1 && $string2 && $string1[0] === $string2[0]) {
+            $string1 = substr($string1, 1);
+            $string2 = substr($string2, 1);
+        }
+        return $string1;
+    }
+    static function formatHeader($caller, $callee) {
+        $file = trim(self::trimLeft($caller['file'], $_SERVER['DOCUMENT_ROOT']), '\\/');
+        // $result .= ' ' . basename($file) . ' (' . dirname($file) . ')';
+        $result = sprintf("%s:%d (%s)", basename($file), $caller['line'], $file);
         if ($callee !== null) {
             $fn = '';
             if (!empty($callee['class'])) {
                 $fn .= $callee['class'] . "::";
             }
-            if (!empty($callee['function'])) {
+            if (!empty($callee['function']) && $callee['function'] !== 'include') {
                 $fn .= $callee['function'];
             }
             if ($fn) {
-                $result['function'] = $fn;
+                $result .= ' (' . $fn . ')';
             }
         }
-        $dump = array_combine(array_map(fn($i) => "var " . $i, array_keys($dump)), $dump);
-        $result += $dump;
-        // array_push($result, ...$dump);
-        // $result['dump'] = func_get_args();
-        $result = json_encode($result, JSON_PRETTY_PRINT);
-        $result .= "\n" . str_repeat("\u{2501}", 80) . "\n";
-        file_put_contents($file, $result, FILE_APPEND);
-        // die("999");
+        $date = date('m-d H:i:s');
+        $date = "[$date]";
+        $result = str_pad($result, self::$width - strlen($date), ' ', STR_PAD_RIGHT) . $date;
+        return $result;
+    }
+    static public function vdf(...$args) {
+        $output = $_SERVER['DOCUMENT_ROOT'] . '/' . self::$fileName;
+        $bt = debug_backtrace();
+        $result = self::format(...array_slice($bt, 0, 2), ...$args) . "\n";
+        file_put_contents($output, $result, FILE_APPEND);
     }
     static public function vdf_reset() {
         $file = $_SERVER['DOCUMENT_ROOT'] . '/' . self::$fileName;

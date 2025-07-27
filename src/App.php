@@ -62,7 +62,7 @@ class App {
 		$this->contact_email = $data['contact_email'] ?? null;
 
 		$this->databases = $data['database'] ?? [];
-		$this->allowed_referers = $data['allowed_referer'] ?? [];
+		$this->allowed_referers = $data['allowed_referers'] ?? [];
 		$this->allowed_ips = $data['allowed_ips'] ?? [];
 		$this->is_active = isset($data['is_active']) ? (bool)$data['is_active'] : true;
 		$this->created_at = $data['created_at'] ?? date('Y-m-d H:i:s');
@@ -84,10 +84,10 @@ class App {
 		return $this;
 	}
 
-	public function get_allowed_referer() {
+	public function get_allowed_referers() {
 		return $this->_allowed_referers;
 	}
-	public function set_allowed_referer($value) {
+	public function set_allowed_referers($value) {
 		$this->_allowed_referers = $this->explode($value);
 		return $this;
 	}
@@ -112,12 +112,25 @@ class App {
 		}
 		return $result;
 	}
-	static function fromKey($app_key): App {
+	static function fromKey($app_key, $referer): App {
 		$SQL = "SELECT * FROM app WHERE app_key = ?";
 		$stmt = self::execQuery($SQL, [$app_key]);
 		$result = $stmt->fetch();
 		if (!$result) {
 			throw new \Exception("App not found for key: $app_key", 401);
+		}
+		if (!$result->is_active === 1) {
+			throw new \Exception("App not active: $app_key", 403);
+		}
+		if (empty($result->allowed_referers)) {
+			return $result;
+		} else {
+			$result = array_find($result->allowed_referers, function ($pattern) use ($referer) {
+				return $this->validateReferer($pattern, $referer);
+			});
+			if (!$result) {
+				throw new \Exception("Referer not allowed: $referer", 403);
+			}
 		}
 		return $result;
 	}
@@ -125,7 +138,6 @@ class App {
 		$params = [];
 		$params['app_key'] = $this->app_key;
 		$params['provider'] = $provider;
-		$attributes['target'] = '_blank';
 		$attributes['href'] = $url;
 		$txt = "Connect using " . ucfirst($provider);
 		$img = $this->tag('img', '', [
@@ -190,19 +202,38 @@ class App {
 			'</div>' .
 			'</form>';
 	}
+	function findProvider() {
+		$providerName = $_SESSION['provider'] ?? $_GET['provider'] ?? null;
+		if (!empty($providerName)) {
+			$_SESSION['provider'] = $providerName; // Store provider in session
+		} else {
+		}
+		$result = $this->validateProvider($providerName);
+		return $result;
+	}
 	function validateProvider($provider) {
 		if ($provider) {
-			if (!in_array($provider, $this->providers)) return null;
-			return Provider::fromName($provider);
+			if (!in_array($provider, $this->providers)) {
+				return null;
+			}
+			$result = Provider::fromName($provider);
+			return $result;
 		}
 		if ($this->signup || count($this->providers) > 1) {
 			$providers = array_map(fn($name) => (Provider::fromName($name))->loginUrl(), $this->providers);
-			// var_dump($providers);
 			return array_combine($this->providers, $providers);
 		}
 		if (count($this->providers) === 1) {
 			return Provider::fromName($this->providers[0]);
 		}
 		return null;
+	}
+	function validateReferer($pattern, $referer) {
+		if (empty($pattern)) return true;
+		if (empty($referer)) return false;
+		$pattern = preg_replace('#^https?://#', '', $pattern);
+		$referer = preg_replace('#^https?://#', '', $referer);
+		$pattern = str_replace(['*', '?'], ['.*', '.'], $pattern);
+		return preg_match('#^' . $pattern . '$#i', $referer);
 	}
 }

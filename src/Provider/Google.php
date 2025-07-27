@@ -4,6 +4,7 @@ class Google extends Provider {
     protected $pdo = null;
     protected $prefix = 'GOOGLE';
     protected $provider_id = 2;
+    public $slug = 'google';
 
     function __construct() {
         $this->client_id = $this->config('client_id');

@@ -4,6 +4,7 @@ class Azure extends Provider {
     protected $prefix = 'AZURE';
     protected $provider_id = 1;
     protected $tenant = null;
+    public $slug = 'azure';
     function __construct() {
         $this->client_id = $this->config('client_id');
         $this->client_secret = $this->config('client_secret');

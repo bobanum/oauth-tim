@@ -3,7 +3,6 @@
 namespace Auth;
 
 use Auth\Provider\Provider;
-
 class Auth {
     use UsesDB;
     use Trait\Debug;
@@ -36,6 +35,7 @@ class Auth {
      * @return Response A response object indicating the logout status.
      */
     static function logout(): Response {
+        // self::vdf_reset();
         if (!session_id()) {
             session_start();
         }
@@ -60,6 +60,7 @@ class Auth {
 
     static public function handleCode(Provider $provider): Response {
         if (!isset($_GET['code'])) return Response::empty();
+        unset($_SESSION['provider']);
         $user = self::processCode($provider, $_GET['code']);
         if (!$user) {
             return new Response(['error' => 'Invalid code'], 403);
@@ -87,7 +88,6 @@ class Auth {
         $_SESSION['login'] = $user->login; // Store user in session
         $_SESSION['name'] = $user->name; // Store user name in session
         $_SESSION['token'] = $token; // Store token in session
-        unset($_SESSION['provider']);
         setcookie('token', $token, time() + 60 * 60 * 24 * 30, '/', '', false, true); // Secure and HttpOnly
         $user->updateToken();
         return $user;
@@ -120,13 +120,6 @@ class Auth {
         }
         return $result;
     }
-    static function getApp($app_key = null) {
-        if ($app_key === null) {
-            $app_key = self::getAppKey();
-        }
-        $app = App::fromKey($app_key);
-        return $app;
-    }
     static function getAppKey() {
         $app_key = $_GET['app_key'] ?? null;
         if ($app_key) {
@@ -139,14 +132,14 @@ class Auth {
     static public function main(): Response {
         $response = self::handleLogout();
         if (!$response->empty) return $response;
-
+        
         $app_key = self::getAppKey();
         if (!$app_key) {
             return new Response(['error' => 'App key is required'], 400);
         }
         if (self::isLoggedIn()) return Response::empty();
         $_SESSION['referer'] = $_SESSION['referer'] ?? $_SERVER['HTTP_REFERER'] ?? null;
-        $app = App::fromKey($app_key);
+        $app = App::fromKey($app_key, $_SESSION['referer']);
         if (!$app) {
             return new Response(['error' => 'Invalid app key: ' . $app_key], 403);
         }
@@ -157,22 +150,22 @@ class Auth {
         if (!empty($app->databases)) {
             $_SESSION['databases'] = explode('|', $app->databases);
         }
-        $_SESSION['provider'] = $_SESSION['provider'] ?? $_GET['provider'] ?? null;
-        $provider = $app->validateProvider($_SESSION['provider']);
+        $provider = $app->findProvider();
         if ($provider === null) return new Response(['error' => 'Invalid provider', 'code' => 403], 403);
-        if ($provider instanceof Provider) {
-            unset($_SESSION['provider']);
-            $response = self::handleCode($provider); // Process the code if present
-            if (!$response->empty) return $response;
-            return $provider->redirect();
+        if (is_array($provider)) {
+            $responseData = [
+                'error' => 'Choose a provider',
+                'status' => 'choose',
+                'signup' => $app->signup == 1,
+                'providers' => $provider,
+                'html' => $app->html_signup() . $app->html_providers_buttons($provider)
+            ];
+            return new Response($responseData, 403, [
+                'Access-Control-Allow-Origin' => rtrim($_SESSION['referer'], '/'),
+            ]);
         }
-        $responseData = [
-            'error' => 'Choose a provider',
-            'status' => 'choose',
-            'signup' => $app->signup == 1,
-            'providers' => $provider,
-            'html' => $app->html_signup() . $app->html_providers_buttons($provider)
-        ];
-        return new Response($responseData, 403);
+        $response = self::handleCode($provider); // Process the code if present
+        if (!$response->empty) return $response;
+        return $provider->redirect();
     }
 }

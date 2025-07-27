@@ -5,6 +5,7 @@ class Github extends Provider {
     protected $pdo = null;
     protected $prefix = 'GITHUB';
     protected $provider_id = 4;
+    public $slug = 'github';
     
     function __construct() {
         $this->client_id = $this->config('client_id');

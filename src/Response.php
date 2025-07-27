@@ -7,8 +7,6 @@ class Response {
 	static $default_headers = [
 		'Access-Control-Expose-Headers' => 'x-http-method-override',
 		'Access-Control-Allow-Methods' => 'GET, POST, OPTIONS, PUT, DELETE',
-        'Access-Control-Allow-Origin' => 'http://localhost:8888',
-        // 'Access-Control-Allow-Origin' => '*',
         'Access-Control-Allow-Credentials' => 'true', // Required for cookies
 		'Content-Type' => 'application/json; charset=utf-8',
 	];
@@ -171,6 +169,10 @@ class Response {
 		if (headers_sent()) return;
 
 		http_response_code($this->code);
+		if (empty($this->headers['Access-Control-Allow-Origin'])) {
+			$referer = rtrim($_SESSION['referer'] ?? $_SERVER['HTTP_REFERER'] ?? '*', '/');
+			$this->headers['Access-Control-Allow-Origin'] = $referer;
+		}
 		foreach ($this->headers as $name => $val) {
 			header("{$name}: {$val}");
 		}
